@@ -36,6 +36,7 @@ def get_categories():
         ...
     }
     '''
+    # lines for loop against category_group, column for loop against 1st category&2nd category
     categories = {}
     # 遍历频道，添加分类信息
     for channel in channel_list:

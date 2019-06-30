@@ -4,7 +4,7 @@ if __name__ == '__main__':
     # 创建连接对象
     client = Fdfs_client('client.conf')
     # 上传文件
-    ret = client.upload_by_filename('/home/python/Desktop/1.jpg')
+    ret = client.upload_by_filename('01.png')
     # 响应值
     print(ret)
 

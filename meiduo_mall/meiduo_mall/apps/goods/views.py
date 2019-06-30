@@ -81,71 +81,58 @@ class HotView(View):
             'errmsg': "OK",
             'hot_sku_list': sku_list
         })
-
-
 class DetailView(View):
-    def get(self, request, sku_id):
+    def get(self,request,sku_id):
+
         try:
-            sku = SKU.objects.get(pk=sku_id)
+            sku = SKU.objects.get(id=sku_id)
         except:
-            return http.Http404('商品编号无效')
-
-        # 分类数据
+            raise http.Http404("invalid sku code")
         categories = get_categories()
-
-        # 获取面包屑导航
-        breadcrumb = get_breadcrumb(sku.category)
-
-        # 获取spu
+        breadcrumb = get_breadcrumb(sku.category_id)
         spu = sku.spu
 
-        # 获取规格信息：sku===>spu==>specs
-        specs = spu.specs.order_by('id')
+        sku_list = spu.skus.all().order_by("id") #skus under same spu
+        sku_options = {}  #(options):
+        current_sku_options = []
+        for each_sku in sku_list:
+            sku_specs = each_sku.specs.order_by("spec_id","sku_id") #specification&option infos under one sku
+            options = []
+            for sku_spec in sku_specs:  # each specification&option record under one sku
+                # current_sku_options = []
+                options.append(sku_spec.option_id)  #add each option under one sku to options
+                if str(sku_id) == str(each_sku.pk):
+                    current_sku_options.append(sku_spec.option_id)
 
-        # 查询所有的sku，如华为P10的所有库存商品
-        skus = spu.skus.order_by('id')
-        '''
-        {
-            选项:sku_id
-        }
-        说明：键的元组中，规格的索引是固定的
-        示例数据如下：
-        {
-            (1,3):1,
-            (2,3):2,
-            (1,4):3,
-            (2,4):4
-        }
-        '''
-        sku_options = {}
-        sku_option = []
-        for sku1 in skus:
-            infos = sku1.specs.order_by('spec_id')
-            option_key = []
-            for info in infos:
-                option_key.append(info.option_id)
-                # 获取当前商品的规格信息
-                if sku.id == sku1.id:
-                    sku_option.append(info.option_id)
-            sku_options[tuple(option_key)] = sku1.id
+            sku_options[tuple(options)] = each_sku.id
 
-        # 遍历当前spu所有的规格
-        specs_list = []
-        for index, spec in enumerate(specs):
-            option_list = []
-            for option in spec.options.all():
-                # 如果当前商品为蓝、64,则列表为[2,3]
-                sku_option_temp = sku_option[:]
-                # 替换对应索引的元素：规格的索引是固定的[1,3]
-                sku_option_temp[index] = option.id
-                # 为选项添加sku_id属性，用于在html中输出链接
-                option.sku_id = sku_options.get(tuple(sku_option_temp), 0)
-                # 添加选项对象
-                option_list.append(option)
-            # 为规格对象添加选项列表
-            spec.option_list = option_list
-            # 重新构造规格数据
-            specs_list.append(spec)
+
+        spec_list = []
+        # option_list = []  #option_list attach to each spec, sku_id attached to each option
+
+        specs1 = sku.specs.order_by("spec_id") #current sku's specs info
+        print(specs1)
+        for index,spec_info in enumerate(specs1):
+
+            available_sku_options = current_sku_options[:]  # ( 1,4,7 ) make a new copy of (1,4,7)
+            spec_data = spec_info.spec #each spec record in spec table
+            spec_options = spec_data.options.order_by("id") #options under specification
+            option_list = []  # option_list attach to each spec, sku_id attached to each option
+            for option_info in spec_options: #each option under specification
+                available_sku_options[index] = option_info.id #update each option's ID in (option1 , option2,..)
+                option_info.sku_id = sku_options.get(tuple(available_sku_options), 0)
+                # print("available_sku_options",available_sku_options)
+                # print("option-sku",option_info,sku_id)
+                option_list.append(option_info)
+            spec_data.option_list = option_list
+            print("each_option_list", spec_data.option_list)
+            print("each spec_info in spec_list",spec_data)
+            spec_list.append(spec_data)
+        print("current sku's specs info",specs1)
+        print("spec_list",spec_list)
+
+
+
 
         context = {
             'sku': sku,
@@ -153,9 +140,84 @@ class DetailView(View):
             'breadcrumb': breadcrumb,
             'category_id': sku.category_id,
             'spu': spu,
-            'specs': specs_list
+            'specs':spec_list,
         }
         return render(request, 'detail.html', context)
+
+#
+# class DetailView(View):
+#     def get(self, request, sku_id):
+#         try:
+#             sku = SKU.objects.get(pk=sku_id)
+#         except:
+#             return http.Http404('商品编号无效')
+#
+#         # 分类数据
+#         categories = get_categories()
+#
+#         # 获取面包屑导航
+#         breadcrumb = get_breadcrumb(sku.category)
+#
+#         # 获取spu
+#         spu = sku.spu
+#
+#         # 获取规格信息：sku===>spu==>specs
+#         specs = spu.specs.order_by('id')
+#
+#         # 查询所有的sku，如华为P10的所有库存商品
+#         skus = spu.skus.order_by('id')
+#         '''
+#         {
+#             选项:sku_id
+#         }
+#         说明：键的元组中，规格的索引是固定的
+#         示例数据如下：
+#         {
+#             (1,3):1,
+#             (2,3):2,
+#             (1,4):3,
+#             (2,4):4
+#         }
+#         '''
+#         sku_options = {}
+#         sku_option = []
+#         for sku1 in skus:
+#             infos = sku1.specs.order_by('spec_id')
+#             option_key = []
+#             for info in infos:
+#                 option_key.append(info.option_id)
+#                 # 获取当前商品的规格信息
+#                 if sku.id == sku1.id:
+#                     sku_option.append(info.option_id)
+#             sku_options[tuple(option_key)] = sku1.id
+#
+#         # 遍历当前spu所有的规格
+#         specs_list = []
+#         for index, spec in enumerate(specs):
+#             option_list = []
+#             for option in spec.options.all():
+#                 # 如果当前商品为蓝、64,则列表为[2,3]
+#                 sku_option_temp = sku_option[:]
+#                 # 替换对应索引的元素：规格的索引是固定的[1,3]
+#                 sku_option_temp[index] = option.id
+#                 # 为选项添加sku_id属性，用于在html中输出链接
+#                 option.sku_id = sku_options.get(tuple(sku_option_temp), 0)
+#                 # 添加选项对象
+#                 option_list.append(option)
+#             # 为规格对象添加选项列表
+#             spec.option_list = option_list
+#             # 重新构造规格数据
+#             specs_list.append(spec)
+#
+#         context = {
+#             'sku': sku,
+#             'categories': categories,
+#             'breadcrumb': breadcrumb,
+#             'category_id': sku.category_id,
+#             'spu': spu,
+#             'specs': specs_list
+#         }
+#         return render(request, 'detail.html', context)
 
 
 class DetailVisitView(View):
